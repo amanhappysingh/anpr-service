@@ -40,7 +40,7 @@ export default function AdityaBirlaLogin() {
    
 
     // ✅ Navigate
-    navigate("/app/dashboard");
+    navigate("");
   },
   onError: (error) => {
     console.error("Login failed:", error);
@@ -103,7 +103,7 @@ export default function AdityaBirlaLogin() {
           <div className="flex flex-col gap-1.5">
             <div className="flex justify-between items-center">
               <label className="text-sm font-medium text-gray-600">Password</label>
-              <a href="#" className="text-xs text-red-500 hover:text-red-600 transition">Forgot password?</a>
+              
             </div>
             <div className="relative">
               <input
@@ -174,11 +174,7 @@ export default function AdityaBirlaLogin() {
         {/* Session info */}
        
 
-        {/* Help link */}
-        <p className="text-center text-xs text-gray-400 mt-6">
-          Need access?{" "}
-          <a href="#" className="text-red-500 hover:text-red-600 transition">Contact IT Support</a>
-        </p>
+       
       </div>
 
       {/* Footer credit */}
