@@ -40,7 +40,7 @@ export default function AdityaBirlaLogin() {
    
 
     // ✅ Navigate
-    navigate("");
+    navigate("/");
   },
   onError: (error) => {
     console.error("Login failed:", error);
