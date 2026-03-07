@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+
   postgres:
     image: postgres:15
     container_name: npr-postgres
@@ -13,41 +14,45 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    networks:
+      - npr-network
 
-  # redis:
-  #   image: redis:7
-  #   container_name: npr-redis
-  #   restart: always
-  #   ports:
-  #     - "6379:6379"
 
   node-api:
     build: ./node-api
     container_name: npr-node
     restart: always
     volumes:
-    - ./node-api/uploads:/app/uploads
+      - ./node-api/uploads:/app/uploads
     env_file:
       - .env
     depends_on:
       - postgres
-      # - redis
+    expose:
+      - "5000"
     ports:
       - "5000:5000"
+    networks:
+      - npr-network
 
-  # ocr-service:
-  #   build: ./ocr-service
-  #   container_name: npr-ocr
-  #   restart: always
-  #   depends_on:
-  #     - postgres
-  #     - redis
-  #   environment:
-  #     POSTGRES_HOST: postgres
-  #     POSTGRES_USER: anpr
-  #     POSTGRES_PASSWORD: anpr123
-  #     POSTGRES_DB: anprdb
-  #     REDIS_HOST: redis
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: npr-nginx
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - node-api
+    networks:
+      - npr-network
+
 
 volumes:
   postgres_data:
+
+
+networks:
+  npr-network:
+    driver: bridge

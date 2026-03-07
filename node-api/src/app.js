@@ -20,7 +20,7 @@ app.use(cors()); // simplest and safest for dev
 
 app.use(express.json());
 
-app.get("/health", (req, res) => {
+app.get("/", (req, res) => {
   res.json({ status: "OK" });
 });
 
