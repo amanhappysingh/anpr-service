@@ -1,0 +1,53 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: npr-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: anpr
+      POSTGRES_PASSWORD: anpr123
+      POSTGRES_DB: anprdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # redis:
+  #   image: redis:7
+  #   container_name: npr-redis
+  #   restart: always
+  #   ports:
+  #     - "6379:6379"
+
+  node-api:
+    build: ./node-api
+    container_name: npr-node
+    restart: always
+    volumes:
+    - ./node-api/uploads:/app/uploads
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      # - redis
+    ports:
+      - "5000:5000"
+
+  # ocr-service:
+  #   build: ./ocr-service
+  #   container_name: npr-ocr
+  #   restart: always
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   environment:
+  #     POSTGRES_HOST: postgres
+  #     POSTGRES_USER: anpr
+  #     POSTGRES_PASSWORD: anpr123
+  #     POSTGRES_DB: anprdb
+  #     REDIS_HOST: redis
+
+volumes:
+  postgres_data:
