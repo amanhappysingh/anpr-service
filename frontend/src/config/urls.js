@@ -1,5 +1,5 @@
 const Urls = {
-    baseURL: "http://62.72.42.155:5000",
+    baseURL: "https://anpr.amperevision.in",
     
     signin: "/api/login",
     signup: "/api/register",
