@@ -22,6 +22,8 @@ export const updatedVehicle = async ( id , payload) => {
   const res = await http.patch(Urls.get_vechile+"/"+id, payload);
   return res.data;
 };
+export const getVehicleLogs = ({ page, skip }) =>
+  http.get(`/vehicle-logs?page=${page}&skip=${skip}`).then(res => res.data);
 
 export const uploadVehiclesBulk = async (vehicles) => {
   const res = await http.post(

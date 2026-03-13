@@ -2,12 +2,16 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const uploadDir = path.join(__dirname, "..", "uploads");
+const baseDir = path.join(__dirname, "..", "uploads");
 
-// 🔥 Auto create folder if not exists
-const folders = ["uploads", "uploads/vehicles", "uploads/plates", "uploads/videos"];
+const folders = {
+  vehicle_image: path.join(baseDir, "vehicles"),
+  plate_image: path.join(baseDir, "plates"),
+  video: path.join(baseDir, "videos")
+};
 
-folders.forEach(folder => {
+// ensure folders exist
+Object.values(folders).forEach(folder => {
   if (!fs.existsSync(folder)) {
     fs.mkdirSync(folder, { recursive: true });
   }
@@ -16,15 +20,28 @@ folders.forEach(folder => {
 const storage = multer.diskStorage({
 
   destination: function (req, file, cb) {
-    cb(null, uploadDir);
+
+    if (file.fieldname === "vehicle_image") {
+      cb(null, folders.vehicle_image);
+    }
+    else if (file.fieldname === "plate_image") {
+      cb(null, folders.plate_image);
+    }
+    else if (file.fieldname === "video") {
+      cb(null, folders.video);
+    }
+    else {
+      cb(null, baseDir);
+    }
+
   },
 
   filename: function (req, file, cb) {
 
-    const uniqueName =
-      Date.now() + "-" + Math.round(Math.random() * 1E9);
+    const id = req.params.id;  // plateNo_timestamp
+    const ext = path.extname(file.originalname);
 
-    cb(null, uniqueName + path.extname(file.originalname));
+    cb(null, `${id}${ext}`);
 
   }
 

@@ -59,7 +59,6 @@ function Modal({ isOpen, onClose, title, children }) {
 }
 
 export default function VehicleRegister() {
-  const [dark, setDark] = useState(true);
   const [vehicles, setVehicles] = useState([]);
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
@@ -68,27 +67,39 @@ export default function VehicleRegister() {
   const [deletingId, setDeletingId] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ vehicleType: "", vehicleNumber: "" });
+  const [form, setForm] = useState({
+    vehicleType: "",
+    plateNumber: "",
+    driverName: "",
+    area: "",
+    contact: "",
+  });
   const [uploadFile, setUploadFile] = useState(null);
   const fileRef = useRef();
 
   const filtered = vehicles.filter(
     (v) =>
-      v.vehicleNumber.toLowerCase().includes(search.toLowerCase()) ||
-      v.vehicleType.toLowerCase().includes(search.toLowerCase()),
+      v.plateNumber.toLowerCase().includes(search.toLowerCase()) ||
+      v.vehicleType.toLowerCase().includes(search.toLowerCase()) ||
+      v.driverName.toLowerCase().includes(search.toLowerCase()) ||
+      v.area.toLowerCase().includes(search.toLowerCase())
   );
 
   const openCreate = () => {
     setEditData(null);
-    setForm({ vehicleType: "", vehicleNumber: "" });
+    setForm({ vehicleType: "", plateNumber: "", driverName: "", area: "", contact: "" });
     setCreateOpen(true);
   };
 
-  console.log(vehicles);
-
   const openEdit = (v) => {
     setEditData(v);
-    setForm({ vehicleType: v.vehicleType, vehicleNumber: v.vehicleNumber });
+    setForm({
+      vehicleType: v.vehicleType,
+      plateNumber: v.plateNumber,
+      driverName: v.driverName,
+      area: v.area,
+      contact: v.contact,
+    });
     setCreateOpen(true);
   };
 
@@ -96,11 +107,14 @@ export default function VehicleRegister() {
     try {
       const data = await getRegisteredVehicles();
 
-      // Backend se data.data aayega
-      const formatted = data.data.map((v, index) => ({
+      const formatted = data.data.map((v) => ({
         _id: v.id,
+        name: v.name,
         vehicleType: v.vehicle_type,
-        vehicleNumber: v.plate_number,
+        plateNumber: v.plate_number,
+        driverName: v.driver_name,
+        area: v.area,
+        contact: v.contact,
         addedAt: v.added_at,
       }));
 
@@ -117,9 +131,7 @@ export default function VehicleRegister() {
   const handleDelete = async (id) => {
     try {
       setDeletingId(id);
-
       await deleteVehicle(id);
-
       await fetchVehicles();
     } catch (error) {
       console.error("Delete Error:", error);
@@ -129,27 +141,28 @@ export default function VehicleRegister() {
   };
 
   const handleSubmit = async () => {
-    if (!form.vehicleType || !form.vehicleNumber) return;
+    if (!form.vehicleType || !form.plateNumber || !form.driverName || !form.area || !form.contact) return;
 
     try {
       setSaving(true);
 
+      const payload = {
+        vehicleType: form.vehicleType,
+        plateNumber: form.plateNumber,
+        driverName: form.driverName,
+        area: form.area,
+        contact: form.contact,
+      };
+
       if (editData) {
-        await updatedVehicle(editData._id, {
-          vehicle_type: form.vehicleType,
-          plate_number: form.vehicleNumber,
-        });
+        await updatedVehicle(editData._id, payload);
       } else {
-        await registerVehicle({
-          plate_number: form.vehicleNumber,
-          vehicle_type: form.vehicleType,
-        });
+        await registerVehicle(payload);
       }
 
       await fetchVehicles();
-
       setCreateOpen(false);
-      setForm({ vehicleType: "", vehicleNumber: "" });
+      setForm({ vehicleType: "", plateNumber: "", driverName: "", area: "", contact: "" });
     } catch (error) {
       console.error("Save Error:", error);
     } finally {
@@ -159,7 +172,7 @@ export default function VehicleRegister() {
 
   const downloadTemplate = () => {
     const csv =
-      "vehicleType,vehicleNumber\nCar,DL 01 AA 0000\nTruck,MH 02 BB 1111";
+      "vehicleType,plateNumber,driverName,area,contact\nCar,DL 01 AA 0000,John Doe,North Delhi,9876543210\nTruck,MH 02 BB 1111,Ramesh Kumar,Andheri,9123456789";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -177,17 +190,18 @@ export default function VehicleRegister() {
 
       const data = await uploadFile.arrayBuffer();
       const workbook = XLSX.read(data);
-
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(sheet);
 
       const formatted = jsonData.map((row) => ({
-        vehicle_type: row.vehicleType,
-        plate_number: row.vehicleNumber,
+        vehicleType: row.vehicleType,
+        plateNumber: row.plateNumber,
+        driverName: row.driverName,
+        area: row.area,
+        contact: String(row.contact),
       }));
 
       await uploadVehiclesBulk(formatted);
-
       await fetchVehicles();
       setUploadFile(null);
       setUploadOpen(false);
@@ -217,15 +231,6 @@ export default function VehicleRegister() {
               Manage and track registered vehicles
             </p>
           </div>
-
-          {/* Theme Toggle */}
-          {/* <button
-            onClick={() => setDark(!dark)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-indigo-400 dark:hover:border-indigo-500 transition-all text-sm font-medium shadow-sm"
-          >
-            <span>{dark ? "🌙" : "☀️"}</span>
-            <span>{dark ? "Dark" : "Light"}</span>
-          </button> */}
         </div>
 
         {/* Toolbar */}
@@ -233,8 +238,8 @@ export default function VehicleRegister() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="🔍  Search by number or type..."
-            className="w-64 px-4 py-2 rounded-xl text-sm outline-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
+            placeholder="🔍  Search by number, type, driver or area..."
+            className="w-72 px-4 py-2 rounded-xl text-sm outline-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
           />
           <div className="flex gap-2">
             <button
@@ -261,13 +266,7 @@ export default function VehicleRegister() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
-                  {[
-                    "#",
-                    "Vehicle Type",
-                    "Vehicle Number",
-                    "Added At",
-                    "Actions",
-                  ].map((h) => (
+                  {["#", "Vehicle Type", "Plate Number", "Driver Name", "Area", "Contact", "Added At", "Actions"].map((h) => (
                     <th
                       key={h}
                       className="text-left px-5 py-3.5 text-xs font-bold uppercase tracking-widest text-gray-400 dark:text-gray-500"
@@ -281,7 +280,7 @@ export default function VehicleRegister() {
                 {filtered.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={8}
                       className="text-center py-14 text-gray-400 dark:text-gray-600"
                     >
                       No vehicles found
@@ -300,7 +299,16 @@ export default function VehicleRegister() {
                         <Badge type={v.vehicleType} />
                       </td>
                       <td className="px-5 py-4 font-mono font-bold text-gray-900 dark:text-white tracking-wide">
-                        {v.vehicleNumber}
+                        {v.plateNumber}
+                      </td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
+                        {v.driverName}
+                      </td>
+                      <td className="px-5 py-4 text-gray-500 dark:text-gray-400">
+                        {v.area}
+                      </td>
+                      <td className="px-5 py-4 text-gray-500 dark:text-gray-400 font-mono">
+                        {v.contact}
                       </td>
                       <td className="px-5 py-4 text-gray-500 dark:text-gray-400">
                         {new Date(v.addedAt).toLocaleDateString("en-IN", {
@@ -313,12 +321,12 @@ export default function VehicleRegister() {
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex gap-2">
-                          {/* <button
+                          <button
                             onClick={() => openEdit(v)}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 hover:border-indigo-400 dark:hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 transition-all"
                           >
                             ✎ Edit
-                          </button> */}
+                          </button>
                           <button
                             onClick={() => handleDelete(v._id)}
                             disabled={deletingId === v._id}
@@ -352,44 +360,72 @@ export default function VehicleRegister() {
               </label>
               <select
                 value={form.vehicleType}
-                onChange={(e) =>
-                  setForm({ ...form, vehicleType: e.target.value })
-                }
+                onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}
                 className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
               >
                 <option value="">Select type...</option>
                 {VEHICLE_TYPES.map((tp) => (
-                  <option key={tp} value={tp}>
-                    {tp}
-                  </option>
+                  <option key={tp} value={tp}>{tp}</option>
                 ))}
               </select>
             </div>
+
             <div>
               <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">
-                Vehicle Number
+                Plate Number
               </label>
               <input
-                value={form.vehicleNumber}
-                onChange={(e) =>
-                  setForm({ ...form, vehicleNumber: e.target.value })
-                }
+                value={form.plateNumber}
+                onChange={(e) => setForm({ ...form, plateNumber: e.target.value })}
                 placeholder="e.g. DL 01 AB 1234"
                 className="w-full px-3 py-2.5 rounded-xl text-sm outline-none font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
               />
             </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">
+                Driver Name
+              </label>
+              <input
+                value={form.driverName}
+                onChange={(e) => setForm({ ...form, driverName: e.target.value })}
+                placeholder="e.g. Ramesh Kumar"
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">
+                Area
+              </label>
+              <input
+                value={form.area}
+                onChange={(e) => setForm({ ...form, area: e.target.value })}
+                placeholder="e.g. North Delhi"
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-1.5">
+                Contact
+              </label>
+              <input
+                value={form.contact}
+                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                placeholder="e.g. 9876543210"
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none font-mono bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-600 focus:border-indigo-500 dark:focus:border-indigo-500 transition-colors"
+              />
+            </div>
+
             <button
               onClick={handleSubmit}
               disabled={saving}
               className="w-full py-2.5 mt-1 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-indigo-500 to-violet-600 hover:opacity-90 shadow-lg shadow-indigo-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving
-                ? editData
-                  ? "Updating..."
-                  : "Registering..."
-                : editData
-                  ? "Save Changes"
-                  : "Register Vehicle"}
+                ? editData ? "Updating..." : "Registering..."
+                : editData ? "Save Changes" : "Register Vehicle"}
             </button>
           </div>
         </Modal>
@@ -402,15 +438,15 @@ export default function VehicleRegister() {
         >
           <div className="flex flex-col gap-4">
             <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">
-              Upload an Excel / CSV file with columns{" "}
-              <code className="bg-gray-100 dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-xs font-mono">
-                vehicleType
-              </code>{" "}
-              and{" "}
-              <code className="bg-gray-100 dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-xs font-mono">
-                vehicleNumber
-              </code>
-              .
+              Upload an Excel / CSV file with columns:{" "}
+              {["vehicleType", "plateNumber", "driverName", "area", "contact"].map((col, idx, arr) => (
+                <span key={col}>
+                  <code className="bg-gray-100 dark:bg-gray-800 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-xs font-mono">
+                    {col}
+                  </code>
+                  {idx < arr.length - 1 ? " " : ""}
+                </span>
+              ))}
             </p>
 
             <button
@@ -429,12 +465,8 @@ export default function VehicleRegister() {
                 }`}
             >
               <span className="text-3xl">📂</span>
-              <span
-                className={`text-sm ${uploadFile ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-gray-400 dark:text-gray-500"}`}
-              >
-                {uploadFile
-                  ? uploadFile.name
-                  : "Click to select Excel / CSV file"}
+              <span className={`text-sm ${uploadFile ? "text-indigo-600 dark:text-indigo-400 font-semibold" : "text-gray-400 dark:text-gray-500"}`}>
+                {uploadFile ? uploadFile.name : "Click to select Excel / CSV file"}
               </span>
               <input
                 ref={fileRef}

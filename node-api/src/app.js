@@ -6,6 +6,7 @@ const emailRoutes = require("./routes/email.routs");
 const authRoutes = require("./routes/auth.routs");
 const { startCron } = require("./services/cron.service");
 const registrationRoutes = require("./routes/vechile.registration.routes");
+const dashboardRoutes = require("./routes/dashboard.routes");
 
 const cors = require("cors");
 
@@ -29,6 +30,7 @@ app.use("/api", reportRoutes);
 app.use("/api", authRoutes);
 app.use("/api/registration", registrationRoutes);
 app.use("/api", emailRoutes );
+app.use("/api", dashboardRoutes);
 
 
 startCron();

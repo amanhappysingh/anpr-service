@@ -1,12 +1,24 @@
 const registrationService = require("../services/vechile.registration.service");
 
+
+// REGISTER VEHICLE
 exports.registerVehicle = async (req, res) => {
   try {
-    const { plate_number, vehicle_type } = req.body;
+
+    const {
+      plateNumber,
+      vehicleType,
+      driverName,
+      area,
+      contact
+    } = req.body;
 
     const vehicle = await registrationService.registerVehicle({
-      plate_number,
-      vehicle_type,
+      plate_number: plateNumber,
+      vehicle_type: vehicleType,
+      driver_name: driverName,
+      area: area,
+      contact: contact
     });
 
     res.status(201).json({
@@ -29,29 +41,52 @@ exports.registerVehicle = async (req, res) => {
     });
   }
 };
+
+
+// GET ALL VEHICLES
 exports.getAllRegisterVehicles = async (req, res) => {
   try {
-    const vechile = await registrationService.getAllRegisterVechiles();
+
+    const vehicles = await registrationService.getAllRegisterVechiles();
+
     res.status(200).json({
-        success : true,
-        count : vechile.length,
-        data : vechile
-    })
+      success: true,
+      count: vehicles.length,
+      data: vehicles
+    });
 
   } catch (error) {
+
     res.status(400).json({
       success: false,
       message: error.message,
     });
+
   }
 };
 
-// ✅ PATCH
+
+// UPDATE VEHICLE
 exports.updateVehicle = async (req, res) => {
   try {
+
     const { id } = req.params;
 
-    const updated = await registrationService.updateVehicle(id, req.body);
+    const {
+      plateNumber,
+      vehicleType,
+      driverName,
+      area,
+      contact
+    } = req.body;
+
+    const updated = await registrationService.updateVehicle(id, {
+      plate_number: plateNumber,
+      vehicle_type: vehicleType,
+      driver_name: driverName,
+      area: area,
+      contact: contact
+    });
 
     res.json({
       success: true,
@@ -60,61 +95,80 @@ exports.updateVehicle = async (req, res) => {
     });
 
   } catch (error) {
+
     res.status(400).json({
       success: false,
       message: error.message,
     });
+
   }
 };
 
 
-// ✅ DELETE
+// DELETE VEHICLE
 exports.deleteVehicle = async (req, res) => {
   try {
+
     const { id } = req.params;
 
     const deleted = await registrationService.deleteVehicle(id);
 
     res.json({
       success: true,
-      message: "Vehicle deactivated successfully",
+      message: "Vehicle deleted successfully",
       data: deleted,
     });
 
   } catch (error) {
+
     res.status(400).json({
       success: false,
       message: error.message,
     });
+
   }
 };
 
 
+// BULK UPLOAD
 exports.bulkUploadVehicles = async (req, res) => {
   try {
+
     const { vehicles } = req.body;
 
     if (!vehicles || !Array.isArray(vehicles)) {
-      return res.status(400).json({ message: "Invalid data" });
+      return res.status(400).json({
+        success: false,
+        message: "Invalid data"
+      });
     }
 
-    const result = await registrationService.bulkInsertVehicles(vehicles);
+    const formattedVehicles = vehicles.map(v => ({
+      plate_number: v.plateNumber,
+      vehicle_type: v.vehicleType,
+      driver_name: v.driverName,
+      area: v.area,
+      contact: v.contact
+    }));
+
+    const result = await registrationService.bulkInsertVehicles(formattedVehicles);
 
     res.json({
       success: true,
       total: vehicles.length,
       inserted: result.inserted,
       skipped: result.skipped,
-      message: `${result.inserted} inserted, ${result.skipped} skipped (duplicates)`,
+      message: `${result.inserted} inserted, ${result.skipped} skipped (duplicates)`
     });
 
   } catch (error) {
+
     console.error(error);
 
     res.status(500).json({
       success: false,
       message: "Bulk insert failed",
     });
+
   }
 };
-

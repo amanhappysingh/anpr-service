@@ -35,18 +35,18 @@ services:
     networks:
       - npr-network
 
-  nginx:
-    build:
-      context: .
-      dockerfile: nginx/Dockerfile
-    container_name: npr-nginx
-    restart: always
-    ports:
-      - "80:80"
-    depends_on:
-      - node-api
-    networks:
-      - npr-network
+  # nginx:
+  #   build:
+  #     context: .
+  #     dockerfile: nginx/Dockerfile
+  #   container_name: npr-nginx
+  #   restart: always
+  #   ports:
+  #     - "80:80"
+  #   depends_on:
+  #     - node-api
+  #   networks:
+  #     - npr-network
 
 
 volumes:
