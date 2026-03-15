@@ -1,153 +1,379 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  Cell, PieChart, Pie
-} from 'recharts';
-import { 
-  Car, Calendar, Hash, TrendingUp, Activity, Database,
-  Download, RefreshCw, Settings, Filter, Search, Clock,
-  ArrowUpRight, ArrowDownRight, CheckCircle2, ShieldCheck, ShieldX, BookCheck
-} from 'lucide-react';
+import { useState, useEffect, useRef } from "react";
+import http from "@/lib/http";
+import Urls from "@/config/urls";
 
-// --- Mock API Function ---
-const fetchVehicleData = async () => {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  
+// Day order for SQL TO_CHAR 'Dy' output (Mon/Tue/Wed...)
+const DAY_ORDER = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function ts() {
+  const n = new Date(), h = n.getHours();
+  const m  = String(n.getMinutes()).padStart(2,'0');
+  const sc = String(n.getSeconds()).padStart(2,'0');
+  return `${String(h % 12 || 12).padStart(2,'0')}:${m}:${sc} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+function normalizeDet(d) {
   return {
-    todayData: {
-      totalVehicles: 234,
-      totalPlates: 468,
-      totalDetected: 234,
-      accuracy: 98.5,
-      authorised: 198,
-      unauthorised: 36,
-      registered: 210,
-      change: {
-        vehicles: 12.5,
-        plates: 8.3,
-        detected: 12.5,
-        authorised: 5.2,
-        unauthorised: -3.1,
-        registered: 7.4,
-      }
-    },
-    
-    last7DaysData: [
-      { day: 'Mon', car: 185, bus: 38, truck: 52 },
-      { day: 'Tue', car: 198, bus: 42, truck: 48 },
-      { day: 'Wed', car: 175, bus: 35, truck: 45 },
-      { day: 'Thu', car: 210, bus: 45, truck: 55 },
-      { day: 'Fri', car: 225, bus: 48, truck: 58 },
-      { day: 'Sat', car: 165, bus: 28, truck: 35 },
-      { day: 'Sun', car: 145, bus: 22, truck: 28 },
-    ],
-    
-    vehicleClassification: [
-      { type: 'Car', count: 1303, color: '#6366f1', percentage: 60.8 },
-      { type: 'Bus', count: 258, color: '#10b981', percentage: 20.2 },
-      { type: 'Truck', count: 321, color: '#f59e0b', percentage: 19.0 },
-    ],
-    
-    recentDetections: [
-      { id: 1, plateNumber: 'DL-01-AB-1234', vehicleType: 'Car', direction: 'IN', time: '09:45 AM', confidence: 99.2, camera: 'CAM-01', status: 'Authorised' },
-      { id: 2, plateNumber: 'DL-02-CD-5678', vehicleType: 'Bus', direction: 'OUT', time: '09:42 AM', confidence: 98.8, camera: 'CAM-02', status: 'Authorised' },
-      { id: 3, plateNumber: 'DL-03-EF-9012', vehicleType: 'Truck', direction: 'IN', time: '09:40 AM', confidence: 97.5, camera: 'CAM-01', status: 'Unauthorised' },
-      { id: 4, plateNumber: 'DL-05-IJ-7890', vehicleType: 'Car', direction: 'OUT', time: '09:35 AM', confidence: 99.5, camera: 'CAM-02', status: 'Authorised' },
-      { id: 5, plateNumber: 'DL-06-KL-2345', vehicleType: 'Car', direction: 'IN', time: '09:32 AM', confidence: 98.1, camera: 'CAM-01', status: 'Authorised' },
-      { id: 6, plateNumber: 'DL-07-MN-6789', vehicleType: 'Truck', direction: 'OUT', time: '09:30 AM', confidence: 97.8, camera: 'CAM-03', status: 'Unauthorised' },
-      { id: 7, plateNumber: 'DL-09-QR-4567', vehicleType: 'Bus', direction: 'IN', time: '09:25 AM', confidence: 98.6, camera: 'CAM-01', status: 'Authorised' },
-      { id: 8, plateNumber: 'DL-10-ST-8901', vehicleType: 'Car', direction: 'OUT', time: '09:22 AM', confidence: 99.1, camera: 'CAM-03', status: 'Authorised' },
-      { id: 9, plateNumber: 'DL-11-UV-2345', vehicleType: 'Truck', direction: 'IN', time: '09:18 AM', confidence: 96.4, camera: 'CAM-02', status: 'Unauthorised' },
-      { id: 10, plateNumber: 'DL-12-WX-6789', vehicleType: 'Bus', direction: 'OUT', time: '09:15 AM', confidence: 98.0, camera: 'CAM-01', status: 'Authorised' },
-    ],
-
-    systemStatus: {
-      cameras: { active: 3, total: 3 },
-      uptime: '99.8%',
-      lastUpdate: 'Just now'
-    }
+    ...d,
+    plate: d.plate ?? (d.id ? d.id.split('_')[0] : '—'),
+    vtype: d.vtype ?? 'Unknown',
   };
-};
+}
 
-// --- Stat Card Component ---
-const StatCard = ({ title, value, change, icon: Icon, subtitle, accentColor = 'indigo' }) => {
-  const isPositive = change >= 0;
-
-  const colorMap = {
-    indigo: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', text: 'text-indigo-600 dark:text-indigo-400' },
-    emerald: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', text: 'text-emerald-600 dark:text-emerald-400' },
-    rose: { bg: 'bg-rose-50 dark:bg-rose-950/30', text: 'text-rose-600 dark:text-rose-400' },
-    amber: { bg: 'bg-amber-50 dark:bg-amber-950/30', text: 'text-amber-600 dark:text-amber-400' },
-    violet: { bg: 'bg-violet-50 dark:bg-violet-950/30', text: 'text-violet-600 dark:text-violet-400' },
-    sky: { bg: 'bg-sky-50 dark:bg-sky-950/30', text: 'text-sky-600 dark:text-sky-400' },
+function normalizeStats(data) {
+  const c = data?.counters ?? {};
+  return {
+    totalVehicles:      parseInt(c.tot)    || 0,
+    totalPlates:        (parseInt(c.tot)   || 0),
+    inCount:            parseInt(c.inC)    || 0,
+    outCount:           parseInt(c.outC)   || 0,
+    inCar:              parseInt(c.inCar)  || 0,
+    inTruck:            parseInt(c.inTrk)  || 0,
+    outCar:             parseInt(c.outCar) || 0,
+    outTruck:           parseInt(c.outTrk) || 0,
+    authorised:         parseInt(c.auth)   || 0,
+    unauthorised:       parseInt(c.unauth) || 0,
+    registeredVehicles: parseInt(c.reg)    || 0,
+    accuracy:           c.acc ?? null,
+    carCount:           (parseInt(c.inCar)  || 0) + (parseInt(c.outCar) || 0),
+    truckCount:         (parseInt(c.inTrk)  || 0) + (parseInt(c.outTrk) || 0),
+    camerasOnline:      2,
+    camerasTotal:       2,
   };
-  const accent = colorMap[accentColor] || colorMap.indigo;
+}
+
+// ─── SVG Line Graph ───────────────────────────────────────────────────────────
+function LineGraph({ data }) {
+  const W = 560, H = 110, padL = 28, padR = 16, padT = 10, padB = 28;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+
+  const maxVal = Math.max(...data.map(d => d.c), ...data.map(d => d.t), 1);
+  const minVal = 0;
+
+  const xStep = innerW / (data.length - 1);
+
+  // Convert value to Y coordinate
+  const yOf = v => padT + innerH - ((v - minVal) / (maxVal - minVal)) * innerH;
+  const xOf = i => padL + i * xStep;
+
+  // Build polyline points
+  const carPts  = data.map((d, i) => `${xOf(i)},${yOf(d.c)}`).join(' ');
+  const truckPts = data.map((d, i) => `${xOf(i)},${yOf(d.t)}`).join(' ');
+
+  // Build fill path (area under line)
+  const carArea = `M ${xOf(0)},${yOf(data[0].c)} ` +
+    data.map((d, i) => `L ${xOf(i)},${yOf(d.c)}`).join(' ') +
+    ` L ${xOf(data.length-1)},${padT+innerH} L ${xOf(0)},${padT+innerH} Z`;
+  const truckArea = `M ${xOf(0)},${yOf(data[0].t)} ` +
+    data.map((d, i) => `L ${xOf(i)},${yOf(d.t)}`).join(' ') +
+    ` L ${xOf(data.length-1)},${padT+innerH} L ${xOf(0)},${padT+innerH} Z`;
+
+  // Y-axis ticks
+  const yTicks = [0, Math.round(maxVal * 0.5), maxVal];
 
   return (
-    <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800 hover:shadow-lg transition-shadow duration-300">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`p-2.5 ${accent.bg} rounded-xl`}>
-          <Icon size={20} className={accent.text} />
-        </div>
-        {change !== undefined && (
-          <div className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold ${
-            isPositive 
-              ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' 
-              : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400'
-          }`}>
-            {isPositive ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-            {Math.abs(change)}%
-          </div>
-        )}
-      </div>
-      <div>
-        <p className="text-neutral-500 dark:text-neutral-400 text-xs font-semibold uppercase tracking-wider mb-1">
-          {title}
-        </p>
-        <p className="text-3xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">
-          {typeof value === 'number' ? value.toLocaleString() : value}
-        </p>
-        {subtitle && (
-          <p className="text-xs text-neutral-400 dark:text-neutral-500 font-medium">
-            {subtitle}
-          </p>
-        )}
-      </div>
-    </div>
+    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <defs>
+        <linearGradient id="carGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="truckGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#f59e0b" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+
+      {/* Horizontal grid lines */}
+      {yTicks.map(tick => (
+        <g key={tick}>
+          <line
+            x1={padL} y1={yOf(tick)} x2={W - padR} y2={yOf(tick)}
+            stroke="currentColor" strokeOpacity="0.07" strokeWidth="1"
+            className="text-gray-500"
+          />
+          <text
+            x={padL - 4} y={yOf(tick) + 3.5}
+            textAnchor="end" fontSize="7"
+            className="fill-gray-400 dark:fill-gray-500"
+          >
+            {tick}
+          </text>
+        </g>
+      ))}
+
+      {/* Area fills */}
+      <path d={truckArea} fill="url(#truckGrad)" />
+      <path d={carArea}   fill="url(#carGrad)" />
+
+      {/* Lines */}
+      <polyline
+        points={truckPts}
+        fill="none" stroke="#f59e0b" strokeWidth="1.8"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="dark:stroke-amber-400"
+      />
+      <polyline
+        points={carPts}
+        fill="none" stroke="#3b82f6" strokeWidth="1.8"
+        strokeLinejoin="round" strokeLinecap="round"
+        className="dark:stroke-blue-400"
+      />
+
+      {/* Dots on car line */}
+      {data.map((d, i) => (
+        <circle key={`c${i}`} cx={xOf(i)} cy={yOf(d.c)} r="2.8"
+          fill="#3b82f6" className="dark:fill-blue-400" />
+      ))}
+
+      {/* Dots on truck line */}
+      {data.map((d, i) => (
+        <circle key={`t${i}`} cx={xOf(i)} cy={yOf(d.t)} r="2.8"
+          fill="#f59e0b" className="dark:fill-amber-400" />
+      ))}
+
+      {/* X-axis labels */}
+      {data.map((d, i) => (
+        <text key={d.d} x={xOf(i)} y={H - 4}
+          textAnchor="middle" fontSize="8"
+          className="fill-gray-400 dark:fill-gray-500"
+        >
+          {d.d}
+        </text>
+      ))}
+    </svg>
+  );
+}
+
+// ─── Reusable pieces ──────────────────────────────────────────────────────────
+const SectionLabel = ({ children }) => (
+  <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-1.5 pl-0.5">
+    {children}
+  </p>
+);
+
+const Pill = ({ children, variant }) => {
+  const map = {
+    car:    'bg-blue-50   dark:bg-blue-950/40   text-blue-700   dark:text-blue-400   border-blue-200   dark:border-blue-800/50',
+    truck:  'bg-amber-50  dark:bg-amber-950/40  text-amber-700  dark:text-amber-400  border-amber-200  dark:border-amber-800/50',
+    unknown:'bg-gray-50   dark:bg-gray-700       text-gray-600   dark:text-gray-400   border-gray-200   dark:border-gray-600',
+    in:     'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
+    out:    'bg-red-50    dark:bg-red-950/40    text-red-700    dark:text-red-400    border-red-200    dark:border-red-800/50',
+    auth:   'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/50',
+    unauth: 'bg-red-50    dark:bg-red-950/40    text-red-700    dark:text-red-400    border-red-200    dark:border-red-800/50',
+  };
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold font-mono border ${map[variant] ?? map.unknown}`}>
+      {children}
+    </span>
   );
 };
 
-// --- Main Dashboard Component ---
-const Dashboard = () => {
-  const [isDark, setIsDark] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState('All');
+const StatCard = ({ topColor, iconBg, icon, label, value, sub, chg }) => (
+  <div className="relative overflow-hidden rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all duration-300">
+    <div className={`absolute top-0 left-0 right-0 h-0.5 ${topColor}`} />
+    <div className="flex items-center justify-between mb-3">
+      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-base ${iconBg}`}>{icon}</div>
+      {chg && (
+        <span className="text-[10px] font-semibold font-mono px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400">
+          {chg}
+        </span>
+      )}
+    </div>
+    <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">{label}</p>
+    <p className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100 my-0.5">{value ?? '—'}</p>
+    <p className="text-[11px] text-gray-400 dark:text-gray-500">{sub}</p>
+  </div>
+);
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery({
-    queryKey: ['vehicleData'],
-    queryFn: fetchVehicleData,
-    staleTime: 30000,
-    refetchInterval: 60000,
-  });
+const IOCard = ({ isIn, num, car, trk, pct }) => (
+  <div className={`rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all duration-300 ${isIn ? 'border-l-[3px] border-l-emerald-500' : 'border-l-[3px] border-l-red-500'}`}>
+    <div className="flex items-center justify-between mb-2.5">
+      <div className={`flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider ${isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+        <span className={`w-5 h-5 rounded flex items-center justify-center text-xs ${isIn ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-red-50 dark:bg-red-950/40'}`}>
+          {isIn ? '↑' : '↓'}
+        </span>
+        {isIn ? 'Vehicles IN' : 'Vehicles OUT'}
+      </div>
+      <span className={`text-[10px] font-semibold font-mono px-1.5 py-0.5 rounded ${isIn ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400'}`}>
+        {pct}% share
+      </span>
+    </div>
+    <p className={`text-4xl font-bold tracking-tighter mb-2.5 ${isIn ? 'text-emerald-500 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'}`}>
+      {num ?? '—'}
+    </p>
+    <div className="flex gap-1.5 mb-2.5">
+      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">Car {car ?? 0}</span>
+      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">Truck {trk ?? 0}</span>
+    </div>
+    <div className="h-[3px] bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden mb-1.5">
+      <div
+        className={`h-full rounded-full transition-all duration-700 ${isIn ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-red-500 to-amber-400'}`}
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+    <div className="flex justify-between text-[10px] font-mono text-gray-400 dark:text-gray-500">
+      <span>of total daily traffic</span>
+      <span>{ts()}</span>
+    </div>
+  </div>
+);
 
-  const filteredDetections = data?.recentDetections.filter(detection => {
-    const matchesSearch = detection.plateNumber.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filterType === 'All' || detection.vehicleType === filterType;
-    return matchesSearch && matchesFilter;
-  }) || [];
+const Skeleton = ({ className }) => (
+  <div className={`animate-pulse bg-gray-200 dark:bg-gray-700 rounded ${className}`} />
+);
 
-  if (isError) {
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+export default function VehicleDashboard() {
+  const [clock,    setClock]    = useState('');
+  const [loading,  setLoading]  = useState(true);
+  const [error,    setError]    = useState(null);
+  const [stats,    setStats]    = useState(null);
+  const [dets,     setDets]     = useState([]);
+  const [newId,    setNewId]    = useState(null);
+  const [wsStatus, setWsStatus] = useState('Connecting...');
+  const [wsCount,  setWsCount]  = useState(0);
+  const [search,   setSearch]   = useState('');
+  const [fdir,     setFdir]     = useState('');
+  const [fstat,    setFstat]    = useState('');
+  const [weeklyData, setWeeklyData] = useState([]);
+  const wsCountRef = useRef(0);
+
+  useEffect(() => {
+    const t = setInterval(() =>
+      setClock(new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit' }))
+    , 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const { data: res } = await http.get(`${Urls.baseURL}/api/dashboard`);
+        const payload = res?.data ?? res;
+        setStats(normalizeStats(payload));
+
+        // ✅ Normalize weekly data from API
+        // SQL returns: [{ d: 'Mon', c: '5', t: '2' }, ...]
+        // Sort by DAY_ORDER so graph is always Mon→Sun
+        if (payload.weekly && Array.isArray(payload.weekly)) {
+          // Map API rows by day key
+          const byDay = {};
+          payload.weekly.forEach(row => {
+            byDay[row.d] = { c: parseInt(row.c) || 0, t: parseInt(row.t) || 0 };
+          });
+          // Always show all 7 days Mon→Sun, missing days = 0
+          const normalized = DAY_ORDER.map(day => ({
+            d: day,
+            c: byDay[day]?.c ?? 0,
+            t: byDay[day]?.t ?? 0,
+          }));
+          setWeeklyData(normalized);
+        }
+
+        if (payload.detections && Array.isArray(payload.detections)) {
+          setDets(payload.detections.map(normalizeDet));
+        }
+      } catch (err) {
+        setError(err?.response?.data?.message || err.message || 'Failed to load dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboard();
+  }, []);
+
+  useEffect(() => {
+    const wsUrl = Urls.baseURL.replace(/^http/, 'ws') + '/ws/images';
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      setWsStatus('Connected · 0 events');
+    };
+
+    ws.onmessage = ({ data }) => {
+      try {
+        const raw = JSON.parse(data);
+        const det = normalizeDet(raw);
+        setDets(prev => [det, ...prev].slice(0, 200));
+        setNewId(det.id);
+        setStats(prev => {
+          if (!prev) return prev;
+          const n = { ...prev };
+          n.totalVehicles = (n.totalVehicles || 0) + 1;
+          n.totalPlates   = (n.totalPlates   || 0) + 1;
+          if (det.dir === 'IN') {
+            n.inCount = (n.inCount || 0) + 1;
+            if (det.vtype === 'Car') n.inCar   = (n.inCar   || 0) + 1;
+            else                     n.inTruck  = (n.inTruck  || 0) + 1;
+          } else {
+            n.outCount = (n.outCount || 0) + 1;
+            if (det.vtype === 'Car') n.outCar   = (n.outCar   || 0) + 1;
+            else                     n.outTruck  = (n.outTruck  || 0) + 1;
+          }
+          if (det.vtype === 'Car') n.carCount   = (n.carCount   || 0) + 1;
+          else                     n.truckCount  = (n.truckCount  || 0) + 1;
+          det.status === 'Authorised' ? n.authorised++ : n.unauthorised++;
+          return n;
+        });
+        wsCountRef.current++;
+        const now = new Date().toLocaleTimeString('en-IN', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+        setWsStatus(`${wsCountRef.current} events · ${now}`);
+        setWsCount(wsCountRef.current);
+      } catch (err) {
+        console.error('Parse error:', err);
+      }
+    };
+
+    ws.onerror = () => setWsStatus('Connection error');
+    ws.onclose = () => setWsStatus('Disconnected');
+    return () => ws.close();
+  }, []);
+
+  const filtered = dets
+    .filter(d =>
+      (!search || d.plate?.toLowerCase().includes(search.toLowerCase())) &&
+      (!fdir   || d.dir    === fdir)  &&
+      (!fstat  || d.status === fstat)
+    )
+    .slice(0, 10);
+
+  const inCount  = stats?.inCount  || 0;
+  const outCount = stats?.outCount || 0;
+  const totTraff = inCount + outCount || 1;
+  const ip       = Math.round(inCount  / totTraff * 100);
+  const op       = 100 - ip;
+  const distCar  = stats?.carCount   || 0;
+  const distTrk  = stats?.truckCount || 0;
+  const dtot     = distCar + distTrk || 1;
+
+  const ctrlCls = [
+    'bg-gray-50 dark:bg-gray-700',
+    'border border-gray-200 dark:border-gray-600',
+    'rounded-md px-2.5 py-1.5',
+    'text-[10px] font-mono',
+    'text-gray-700 dark:text-gray-300',
+    'placeholder-gray-400 dark:placeholder-gray-500',
+    'outline-none focus:border-blue-400 dark:focus:border-blue-500',
+    'transition-colors',
+  ].join(' ');
+
+  if (error) {
     return (
-      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 flex items-center justify-center">
-        <div className="text-center bg-white dark:bg-neutral-900 p-8 rounded-2xl border border-neutral-200 dark:border-neutral-800 max-w-md">
-          <div className="w-16 h-16 bg-rose-100 dark:bg-rose-950/30 rounded-full flex items-center justify-center mx-auto mb-4">
-            <Activity size={32} className="text-rose-600 dark:text-rose-400" />
-          </div>
-          <h2 className="text-xl font-bold text-neutral-800 dark:text-neutral-100 mb-2">Unable to Load Data</h2>
-          <p className="text-neutral-500 dark:text-neutral-400 mb-6">There was an error connecting to the system. Please try again.</p>
-          <button onClick={() => refetch()} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-semibold transition-colors">
-            Retry Connection
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-6">
+        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800/40 rounded-2xl p-8 max-w-md w-full text-center shadow-sm">
+          <div className="w-12 h-12 bg-red-50 dark:bg-red-950/40 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">⚠️</div>
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Failed to load dashboard</p>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-4 font-mono">{error}</p>
+          <button onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-lg transition-colors">
+            Retry
           </button>
         </div>
       </div>
@@ -155,323 +381,272 @@ const Dashboard = () => {
   }
 
   return (
-    <div className={`${isDark ? 'dark' : ''} transition-colors duration-300`}>
-      <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
-        
-        {/* Header */}
-        <header className="bg-white dark:bg-neutral-900 border-b border-neutral-200 dark:border-neutral-800 sticky top-0 z-50 backdrop-blur-sm bg-white/80 dark:bg-neutral-900/80">
-          <div className="max-w-[1600px] mx-auto px-6 py-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="p-2.5 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl text-white shadow-lg shadow-indigo-500/30">
-                  <Car size={24} />
-                </div>
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight">Vehicle Detection System</h1>
-                  <p className="text-neutral-500 dark:text-neutral-400 text-sm font-medium">Real-time Plate Recognition · Heavy Vehicles Only</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3">
-                {data && (
-                  <div className="hidden lg:flex items-center gap-2 px-4 py-2 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl">
-                    <CheckCircle2 size={16} className="text-emerald-600 dark:text-emerald-400" />
-                    <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">System Active</span>
-                  </div>
-                )}
-                <button
-                  onClick={() => refetch()}
-                  disabled={isFetching}
-                  className="p-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors disabled:opacity-50"
-                  title="Refresh Data"
-                >
-                  <RefreshCw size={18} className={isFetching ? 'animate-spin' : ''} />
-                </button>
-                <button
-                  onClick={() => setIsDark(!isDark)}
-                  className="p-2.5 hover:bg-neutral-100 dark:hover:bg-neutral-800 rounded-xl transition-colors"
-                  title="Toggle Theme"
-                >
-                  <Settings size={18} />
-                </button>
-              </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+      <div className="flex flex-col gap-4 max-w-[1600px] mx-auto">
+
+        {/* ── TOPBAR ── */}
+        <header className="flex items-center justify-between bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-5 py-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-600 rounded-lg flex items-center justify-center text-lg flex-shrink-0">🚦</div>
+            <div>
+              <p className="text-sm font-bold tracking-tight text-gray-900 dark:text-gray-100">ANPR Command Center</p>
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">Automatic Number Plate Recognition · Real-time Monitoring</p>
             </div>
+          </div>
+          <div className="flex items-center gap-2">
+           
+              
+            <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-mono font-medium border ${
+              wsStatus.startsWith('Connected') || wsStatus.includes('events')
+                ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400'
+                : wsStatus === 'Disconnected' || wsStatus === 'Connection error'
+                ? 'bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-800/40 text-red-700 dark:text-red-400'
+                : 'bg-gray-50 dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${
+                wsStatus.startsWith('Connected') || wsStatus.includes('events') ? 'bg-blue-500 animate-pulse'
+                : wsStatus === 'Disconnected' || wsStatus === 'Connection error' ? 'bg-red-500'
+                : 'bg-gray-400'
+              }`} />
+              {wsStatus.startsWith('Connected') || wsStatus.includes('events') ? 'WS LIVE'
+                : wsStatus.startsWith('Connecting') ? 'WS ...' : 'WS OFF'}
+            </span>
+            <span className="font-mono text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2.5 py-1 rounded-md">
+              {clock}
+            </span>
           </div>
         </header>
 
-        <div className="max-w-[1600px] mx-auto px-6 py-8">
-          {isLoading && (
-            <div className="flex items-center justify-center py-32">
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 border-4 border-indigo-200 dark:border-indigo-900 border-t-indigo-600 dark:border-t-indigo-400 rounded-full animate-spin"></div>
-                <p className="text-neutral-500 dark:text-neutral-400 font-semibold">Loading dashboard...</p>
+        {/* ── STATS ── */}
+        <div>
+          <SectionLabel>Overview · Today</SectionLabel>
+          <div className="grid grid-cols-4 gap-3">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3">
+                  <Skeleton className="h-8 w-8 rounded-lg" />
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-7 w-16" />
+                  <Skeleton className="h-3 w-28" />
+                </div>
+              ))
+            ) : (
+              <>
+                <StatCard topColor="bg-gradient-to-r from-blue-500 to-violet-500"   iconBg="bg-blue-50 dark:bg-blue-950/40"     icon="🚗" label="Total Vehicles"       value={stats?.totalVehicles}      sub="Detected today"      chg={null} />
+                <StatCard topColor="bg-gradient-to-r from-teal-400 to-blue-500"     iconBg="bg-teal-50 dark:bg-teal-950/40"     icon="🪪" label="Total Plates"         value={stats?.totalPlates}        sub="IN + OUT combined"   chg={null} />
+                <StatCard topColor="bg-gradient-to-r from-violet-500 to-blue-500"   iconBg="bg-violet-50 dark:bg-violet-950/40" icon="📷" label="Cameras Online"       value="2 / 2"                     sub="All systems nominal"  chg={null} />
+                <StatCard topColor="bg-gradient-to-r from-emerald-500 to-teal-400"  iconBg="bg-emerald-50 dark:bg-emerald-950/40" icon="📋" label="Registered Vehicles" value={stats?.registeredVehicles} sub="In system database"  chg={null} />
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ── IN / OUT + AUTH ── */}
+        <div>
+          <SectionLabel>Traffic Flow</SectionLabel>
+          <div className="grid grid-cols-[1fr_1fr_210px] gap-3">
+            {loading ? (
+              <>
+                {[0,1].map(i => (
+                  <div key={i} className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3">
+                    <Skeleton className="h-4 w-32" /><Skeleton className="h-10 w-20" />
+                    <Skeleton className="h-4 w-40" /><Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                ))}
+                <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm space-y-3">
+                  <Skeleton className="h-3 w-32" /><Skeleton className="h-8 w-16" />
+                  <Skeleton className="h-px w-full" /><Skeleton className="h-8 w-16" />
+                </div>
+              </>
+            ) : (
+              <>
+                <IOCard isIn num={inCount}  car={stats?.inCar   || 0} trk={stats?.inTruck  || 0} pct={ip} />
+                <IOCard      num={outCount} car={stats?.outCar  || 0} trk={stats?.outTruck || 0} pct={op} />
+                <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm flex flex-col gap-2.5 transition-all duration-300">
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Authorization Status</p>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mb-0.5">AUTHORISED</p>
+                      <p className="text-2xl font-bold tracking-tight text-emerald-500 dark:text-emerald-400">{stats?.authorised ?? '—'}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold font-mono px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">CLEARED</span>
+                  </div>
+                  <div className="h-px bg-gray-100 dark:bg-gray-700" />
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold text-red-600 dark:text-red-400 mb-0.5">UNAUTHORISED</p>
+                      <p className="text-2xl font-bold tracking-tight text-red-500 dark:text-red-400">{stats?.unauthorised ?? '—'}</p>
+                    </div>
+                    <span className="text-[10px] font-semibold font-mono px-2 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800/40">FLAGGED</span>
+                  </div>
+                  <div className="h-px bg-gray-100 dark:bg-gray-700" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">Registered in DB</span>
+                    <span className="text-[13px] font-semibold text-gray-900 dark:text-gray-100">{stats?.registeredVehicles ?? '—'}</span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ── CHARTS ── */}
+        <div>
+          <SectionLabel>Analytics</SectionLabel>
+          <div className="grid grid-cols-[1fr_220px] gap-3">
+
+            {/* ✅ Line Graph */}
+            <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all duration-300">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">Weekly Traffic Trend</p>
+                <p className="text-[11px] text-gray-400 dark:text-gray-500">Last 7 days · Car & Truck</p>
+              </div>
+              <LineGraph data={weeklyData.length > 0 ? weeklyData : DAY_ORDER.map(d => ({ d, c: 0, t: 0 }))} />
+              <div className="flex gap-4 mt-2">
+                {[
+                  { col: 'bg-blue-500',  lbl: 'Car'   },
+                  { col: 'bg-amber-400', lbl: 'Truck' },
+                ].map(({ col, lbl }) => (
+                  <div key={lbl} className="flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500">
+                    <div className={`w-6 h-[2px] rounded-full ${col}`} />
+                    {lbl}
+                  </div>
+                ))}
               </div>
             </div>
-          )}
 
-          {!isLoading && data && (
-            <>
-              {/* Row 1: Core Metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                <StatCard
-                  title="Total Vehicles"
-                  value={data.todayData.totalVehicles}
-                  change={data.todayData.change.vehicles}
-                  icon={Car}
-                  subtitle="Detected today"
-                  accentColor="indigo"
-                />
-                <StatCard
-                  title="Total Plates"
-                  value={data.todayData.totalPlates}
-                  change={data.todayData.change.plates}
-                  icon={Hash}
-                  subtitle="IN + OUT combined"
-                  accentColor="violet"
-                />
-                <StatCard
-                  title="Unique Detections"
-                  value={data.todayData.totalDetected}
-                  change={data.todayData.change.detected}
-                  icon={Database}
-                  subtitle="Individual vehicles"
-                  accentColor="sky"
-                />
-                <StatCard
-                  title="Accuracy Rate"
-                  value={`${data.todayData.accuracy}%`}
-                  icon={Activity}
-                  subtitle="Detection confidence"
-                  accentColor="amber"
-                />
-              </div>
-
-              {/* Row 2: Auth / Registered Metrics */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
-                <StatCard
-                  title="Authorised Vehicles"
-                  value={data.todayData.authorised}
-                  change={data.todayData.change.authorised}
-                  icon={ShieldCheck}
-                  subtitle="Cleared for entry"
-                  accentColor="emerald"
-                />
-                <StatCard
-                  title="Unauthorised Vehicles"
-                  value={data.todayData.unauthorised}
-                  change={data.todayData.change.unauthorised}
-                  icon={ShieldX}
-                  subtitle="Flagged / denied"
-                  accentColor="rose"
-                />
-                <StatCard
-                  title="Registered Vehicles"
-                  value={data.todayData.registered}
-                  change={data.todayData.change.registered}
-                  icon={BookCheck}
-                  subtitle="In system database"
-                  accentColor="sky"
-                />
-              </div>
-
-              {/* Charts Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                
-                {/* Weekly Trend */}
-                <div className="lg:col-span-2 bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <TrendingUp size={20} className="text-indigo-500" />
-                      Weekly Trend Analysis
-                    </h3>
-                    <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">Last 7 Days</span>
-                  </div>
-                  <div className="h-80 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={data.last7DaysData}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "#262626" : "#f5f5f5"} />
-                        <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill: '#737373', fontSize: 12, fontWeight: 600}} dy={10} />
-                        <YAxis axisLine={false} tickLine={false} tick={{fill: '#737373', fontSize: 11}} />
-                        <Tooltip contentStyle={{ backgroundColor: isDark ? '#171717' : '#fff', borderColor: isDark ? '#262626' : '#e5e7eb', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.15)' }} labelStyle={{ fontWeight: 'bold', marginBottom: '8px' }} />
-                        <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" formatter={(value) => <span style={{ fontSize: '13px', fontWeight: 600 }}>{value}</span>} />
-                        <Line type="monotone" dataKey="car" stroke="#6366f1" strokeWidth={2.5} dot={{ fill: '#6366f1', r: 4 }} name="Car" />
-                        <Line type="monotone" dataKey="bus" stroke="#10b981" strokeWidth={2.5} dot={{ fill: '#10b981', r: 4 }} name="Bus" />
-                        <Line type="monotone" dataKey="truck" stroke="#f59e0b" strokeWidth={2.5} dot={{ fill: '#f59e0b', r: 4 }} name="Truck" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+            {/* Distribution donut */}
+            <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 shadow-sm transition-all duration-300">
+              <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-3">Distribution</p>
+              {loading ? (
+                <div className="space-y-3">
+                  <Skeleton className="w-24 h-24 rounded-full mx-auto" />
+                  <Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" />
                 </div>
-
-                {/* Vehicle Distribution */}
-                <div className="bg-white dark:bg-neutral-900 p-6 rounded-2xl border border-neutral-200 dark:border-neutral-800">
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <Car size={20} className="text-indigo-500" />
-                      Distribution
-                    </h3>
-                  </div>
-                  <div className="h-48 w-full mb-6">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie data={data.vehicleClassification} dataKey="count" nameKey="type" cx="50%" cy="50%" innerRadius={50} outerRadius={70} paddingAngle={3}>
-                          {data.vehicleClassification.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                          ))}
-                        </Pie>
-                        <Tooltip contentStyle={{ backgroundColor: isDark ? '#171717' : '#fff', borderColor: isDark ? '#262626' : '#e5e7eb', borderRadius: '12px', padding: '8px 12px' }} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="space-y-3">
-                    {data.vehicleClassification.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                          <span className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">{item.type}</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-neutral-500 dark:text-neutral-400">{item.percentage}%</span>
-                          <span className="text-sm font-bold text-neutral-900 dark:text-neutral-100">{item.count}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Recent Detections Table */}
-              <div className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                <div className="p-6 border-b border-neutral-200 dark:border-neutral-800">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                      <Clock size={20} className="text-indigo-500" />
-                      Recent Detections
-                    </h3>
-                    
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="relative">
-                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400" />
-                        <input
-                          type="text"
-                          placeholder="Search plate number..."
-                          value={searchTerm}
-                          onChange={(e) => setSearchTerm(e.target.value)}
-                          className="pl-10 pr-4 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64"
-                        />
-                      </div>
-                      
-                      <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value)}
-                        className="px-4 py-2 bg-neutral-50 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option>All</option>
-                        <option>Car</option>
-                        <option>Bus</option>
-                        <option>Truck</option>
-                      </select>
-                      
-                      <button className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold flex items-center gap-2 transition-colors whitespace-nowrap">
-                        <Download size={16} />
-                        Export
-                      </button>
+              ) : (
+                <>
+                  <div className="relative w-24 h-24 mx-auto mb-3">
+                    <svg width="96" height="96" viewBox="0 0 96 96">
+                      <circle cx="48" cy="48" r="38" fill="none" className="stroke-gray-100 dark:stroke-gray-700" strokeWidth="12" />
+                      <circle cx="48" cy="48" r="38" fill="none" className="stroke-blue-500 dark:stroke-blue-400" strokeWidth="12"
+                        strokeDasharray={`${Math.round(distCar/dtot*239)} ${239-Math.round(distCar/dtot*239)}`}
+                        strokeDashoffset="0" transform="rotate(-90 48 48)" />
+                      <circle cx="48" cy="48" r="38" fill="none" className="stroke-amber-400 dark:stroke-amber-500" strokeWidth="12"
+                        strokeDasharray={`${239-Math.round(distCar/dtot*239)} ${Math.round(distCar/dtot*239)}`}
+                        strokeDashoffset={`-${Math.round(distCar/dtot*239)}`} transform="rotate(-90 48 48)" />
+                      <circle cx="48" cy="48" r="30" className="fill-white dark:fill-gray-800" />
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-lg font-bold tracking-tight text-gray-900 dark:text-gray-100">{distCar + distTrk}</span>
+                      <span className="text-[9px] font-mono text-gray-400 dark:text-gray-500">TOTAL</span>
                     </div>
                   </div>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-600 dark:text-neutral-400 text-xs uppercase font-bold tracking-wider">
-                        <th className="px-6 py-4 text-left">ID</th>
-                        <th className="px-6 py-4 text-left">Plate Number</th>
-                        <th className="px-6 py-4 text-left">Type</th>
-                        <th className="px-6 py-4 text-left">Direction</th>
-                        <th className="px-6 py-4 text-left">Camera</th>
-                        <th className="px-6 py-4 text-left">Confidence</th>
-                        <th className="px-6 py-4 text-left">Status</th>
-                        <th className="px-6 py-4 text-left">Time</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-                      {filteredDetections.length > 0 ? (
-                        filteredDetections.map((detection) => (
-                          <tr key={detection.id} className="hover:bg-neutral-50 dark:hover:bg-neutral-800/30 transition-colors">
-                            <td className="px-6 py-4 text-sm font-semibold text-neutral-500 dark:text-neutral-500">
-                              #{detection.id.toString().padStart(4, '0')}
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="font-mono font-bold text-neutral-900 dark:text-neutral-100">{detection.plateNumber}</span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                                ${detection.vehicleType === 'Car' ? 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-400' : ''}
-                                ${detection.vehicleType === 'Bus' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : ''}
-                                ${detection.vehicleType === 'Truck' ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400' : ''}
-                              `}>
-                                {detection.vehicleType}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-bold
-                                ${detection.direction === 'IN' 
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' 
-                                  : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400'}
-                              `}>
-                                {detection.direction}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm font-semibold text-neutral-600 dark:text-neutral-400">{detection.camera}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center gap-2">
-                                <div className="flex-1 h-1.5 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden max-w-[80px]">
-                                  <div 
-                                    className={`h-full rounded-full ${
-                                      detection.confidence >= 98 ? 'bg-emerald-500' :
-                                      detection.confidence >= 95 ? 'bg-amber-500' : 'bg-rose-500'
-                                    }`}
-                                    style={{ width: `${detection.confidence}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs font-bold text-neutral-600 dark:text-neutral-400">{detection.confidence}%</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold
-                                ${detection.status === 'Authorised' 
-                                  ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' 
-                                  : 'bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400'}
-                              `}>
-                                {detection.status === 'Authorised' ? <ShieldCheck size={12} /> : <ShieldX size={12} />}
-                                {detection.status}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4 text-sm font-medium text-neutral-500 dark:text-neutral-400">{detection.time}</td>
-                          </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="8" className="px-6 py-12 text-center text-neutral-500 dark:text-neutral-400">
-                            No detections found matching your criteria
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-                
-                <div className="px-6 py-4 bg-neutral-50 dark:bg-neutral-800/30 border-t border-neutral-200 dark:border-neutral-800">
-                  <p className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
-                    Showing {filteredDetections.length} of {data.recentDetections.length} recent detections
-                  </p>
-                </div>
-              </div>
-            </>
-          )}
+                  {[
+                    { lbl:'Car',   col:'bg-blue-500 dark:bg-blue-400',   pct:Math.round(distCar/dtot*100), cnt:distCar  },
+                    { lbl:'Truck', col:'bg-amber-400 dark:bg-amber-500', pct:Math.round(distTrk/dtot*100), cnt:distTrk  },
+                  ].map(item => (
+                    <div key={item.lbl} className="flex items-center justify-between py-1.5 border-b border-gray-100 dark:border-gray-700 last:border-0">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-sm ${item.col}`} />
+                        <span className="text-[12px] font-medium text-gray-700 dark:text-gray-300">{item.lbl}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] font-mono text-gray-400 dark:text-gray-500">{item.pct}%</span>
+                        <span className="text-[12px] font-semibold font-mono text-gray-900 dark:text-gray-100">{item.cnt}</span>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
         </div>
+
+        {/* ── LIVE DETECTION TABLE ── */}
+        <div>
+          <SectionLabel>Live Detection Feed · Latest 10</SectionLabel>
+          <div className="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700 flex-wrap gap-2">
+              <div className="flex items-center gap-2.5">
+                <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">Recent Detections</span>
+                <span className="text-[10px] font-mono bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/40 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded">
+                  {filtered.length} records
+                </span>
+              </div>
+              <div className="flex gap-1.5 items-center">
+                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search plate..." className={`${ctrlCls} w-36`} />
+                <select value={fdir}  onChange={e => setFdir(e.target.value)}  className={ctrlCls}>
+                  <option value="">IN + OUT</option>
+                  <option value="IN">IN only</option>
+                  <option value="OUT">OUT only</option>
+                </select>
+                <select value={fstat} onChange={e => setFstat(e.target.value)} className={ctrlCls}>
+                  <option value="">All Status</option>
+                  <option value="Authorised">Authorised</option>
+                  <option value="Unauthorised">Unauthorised</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-gray-700/60">
+                    {['Plate Number','Type','Direction','Status','Time'].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left text-[9px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 font-mono whitespace-nowrap border-b border-gray-100 dark:border-gray-700">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.length ? filtered.map((d, i) => (
+                    <tr key={d.id}
+                      className={`border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors duration-150 ${i === 0 && d.id === newId ? 'bg-blue-50/60 dark:bg-blue-950/20' : ''}`}
+                    >
+                      <td className="px-4 py-2.5">
+                        <span className="font-mono text-[12px] font-medium text-gray-900 dark:text-gray-100 tracking-wide">{d.plate}</span>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {d.vtype === 'Car' ? <Pill variant="car">🚗 Car</Pill>
+                          : d.vtype === 'Truck' ? <Pill variant="truck">🚛 Truck</Pill>
+                          : <Pill variant="unknown">❓ {d.vtype}</Pill>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {d.dir === 'IN' ? <Pill variant="in">↑ IN</Pill> : <Pill variant="out">↓ OUT</Pill>}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {d.status === 'Authorised' ? <Pill variant="auth">✓ Authorised</Pill> : <Pill variant="unauth">✕ Unauthorised</Pill>}
+                      </td>
+                      <td className="px-4 py-2.5 font-mono text-[11px] text-gray-400 dark:text-gray-500">{d.time}</td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={5} className="text-center py-10 text-gray-400 dark:text-gray-500">
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-2xl">📡</span>
+                          <span className="text-sm font-medium">Waiting for live detections...</span>
+                          <span className="text-[11px] font-mono">{wsStatus}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-700/60 border-t border-gray-100 dark:border-gray-700">
+              <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                Showing {filtered.length} of {dets.length} total · Latest 10 only
+              </span>
+              <div className="flex items-center gap-1.5 text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                <span className={`w-1.5 h-1.5 rounded-full ${wsStatus.startsWith('Connected') || wsStatus.includes('events') ? 'bg-emerald-500' : 'bg-red-400'}`} />
+                <span>WebSocket</span>
+                <span className="text-blue-600 dark:text-blue-400">{wsStatus}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
-};
-
-export default Dashboard;
+}

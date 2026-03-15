@@ -8,17 +8,11 @@ import {
 import * as XLSX from "xlsx";
 import { useState, useRef, useEffect } from "react";
 
-const VEHICLE_TYPES = ["Car", "Truck", "Bike", "Van", "Bus", "SUV", "Auto"];
+const VEHICLE_TYPES = ["Car", "Truck"];
 
 const BADGE_CLASSES = {
   Car: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
-  Truck:
-    "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
-  Bike: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-400",
-  Van: "bg-purple-100 text-purple-700 dark:bg-purple-950 dark:text-purple-400",
-  Bus: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-400",
-  SUV: "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-400",
-  Auto: "bg-yellow-100 text-yellow-700 dark:bg-yellow-950 dark:text-yellow-400",
+  Truck: "bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
 };
 
 function Badge({ type }) {
@@ -106,7 +100,6 @@ export default function VehicleRegister() {
   const fetchVehicles = async () => {
     try {
       const data = await getRegisteredVehicles();
-
       const formatted = data.data.map((v) => ({
         _id: v.id,
         name: v.name,
@@ -117,7 +110,6 @@ export default function VehicleRegister() {
         contact: v.contact,
         addedAt: v.added_at,
       }));
-
       setVehicles(formatted);
     } catch (error) {
       console.error("Fetch Error:", error);
@@ -145,7 +137,6 @@ export default function VehicleRegister() {
 
     try {
       setSaving(true);
-
       const payload = {
         vehicleType: form.vehicleType,
         plateNumber: form.plateNumber,
@@ -153,13 +144,11 @@ export default function VehicleRegister() {
         area: form.area,
         contact: form.contact,
       };
-
       if (editData) {
         await updatedVehicle(editData._id, payload);
       } else {
         await registerVehicle(payload);
       }
-
       await fetchVehicles();
       setCreateOpen(false);
       setForm({ vehicleType: "", plateNumber: "", driverName: "", area: "", contact: "" });
@@ -184,15 +173,12 @@ export default function VehicleRegister() {
 
   const handleUploadSubmit = async () => {
     if (!uploadFile) return;
-
     try {
       setUploading(true);
-
       const data = await uploadFile.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(sheet);
-
       const formatted = jsonData.map((row) => ({
         vehicleType: row.vehicleType,
         plateNumber: row.plateNumber,
@@ -200,7 +186,6 @@ export default function VehicleRegister() {
         area: row.area,
         contact: String(row.contact),
       }));
-
       await uploadVehiclesBulk(formatted);
       await fetchVehicles();
       setUploadFile(null);
@@ -243,10 +228,7 @@ export default function VehicleRegister() {
           />
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                setUploadFile(null);
-                setUploadOpen(true);
-              }}
+              onClick={() => { setUploadFile(null); setUploadOpen(true); }}
               className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:border-indigo-400 dark:hover:border-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all shadow-sm"
             >
               <span>⬆</span> Upload File
@@ -279,10 +261,7 @@ export default function VehicleRegister() {
               <tbody>
                 {filtered.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="text-center py-14 text-gray-400 dark:text-gray-600"
-                    >
+                    <td colSpan={8} className="text-center py-14 text-gray-400 dark:text-gray-600">
                       No vehicles found
                     </td>
                   </tr>
@@ -292,31 +271,16 @@ export default function VehicleRegister() {
                       key={v._id}
                       className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors"
                     >
-                      <td className="px-5 py-4 text-xs font-semibold text-gray-400 dark:text-gray-600">
-                        {i + 1}
-                      </td>
-                      <td className="px-5 py-4">
-                        <Badge type={v.vehicleType} />
-                      </td>
-                      <td className="px-5 py-4 font-mono font-bold text-gray-900 dark:text-white tracking-wide">
-                        {v.plateNumber}
-                      </td>
-                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">
-                        {v.driverName}
-                      </td>
-                      <td className="px-5 py-4 text-gray-500 dark:text-gray-400">
-                        {v.area}
-                      </td>
-                      <td className="px-5 py-4 text-gray-500 dark:text-gray-400 font-mono">
-                        {v.contact}
-                      </td>
+                      <td className="px-5 py-4 text-xs font-semibold text-gray-400 dark:text-gray-600">{i + 1}</td>
+                      <td className="px-5 py-4"><Badge type={v.vehicleType} /></td>
+                      <td className="px-5 py-4 font-mono font-bold text-gray-900 dark:text-white tracking-wide">{v.plateNumber}</td>
+                      <td className="px-5 py-4 text-gray-700 dark:text-gray-300">{v.driverName}</td>
+                      <td className="px-5 py-4 text-gray-500 dark:text-gray-400">{v.area}</td>
+                      <td className="px-5 py-4 text-gray-500 dark:text-gray-400 font-mono">{v.contact}</td>
                       <td className="px-5 py-4 text-gray-500 dark:text-gray-400">
                         {new Date(v.addedAt).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
+                          day: "2-digit", month: "short", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
                         })}
                       </td>
                       <td className="px-5 py-4">
