@@ -1,7 +1,20 @@
-const emailService = require("./email.service");
 
-exports.sendMail = async (subject, text, attachment) => {
-  const emails = await emailService.getActiveEmails();
+const emailController = require("../controllers/email.controller");
+const EmailRecipient = require("../modals/emailRecipient.model");
+const nodemailer = require("nodemailer");
+
+
+
+exports.sendMail = async (subject, html, attachment) => {
+  const emails = await EmailRecipient.findAll();
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.MAIL_USER,
+      pass: process.env.MAIL_PASS
+    }
+  });
 
   const emailList = emails.rows.map(e => e.email);
 
@@ -14,7 +27,7 @@ exports.sendMail = async (subject, text, attachment) => {
     from: process.env.MAIL_USER,
     to: emailList.join(","),
     subject,
-    text,
+    html,
     attachments: attachment ? [attachment] : [],
   });
 };

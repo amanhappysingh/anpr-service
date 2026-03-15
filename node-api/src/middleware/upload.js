@@ -2,7 +2,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-const baseDir = path.join(__dirname, "..", "uploads");
+const baseDir = path.join(process.cwd(), "uploads");
 
 const folders = {
   vehicle_image: path.join(baseDir, "vehicles"),
@@ -10,7 +10,6 @@ const folders = {
   video: path.join(baseDir, "videos")
 };
 
-// ensure folders exist
 Object.values(folders).forEach(folder => {
   if (!fs.existsSync(folder)) {
     fs.mkdirSync(folder, { recursive: true });
@@ -23,14 +22,11 @@ const storage = multer.diskStorage({
 
     if (file.fieldname === "vehicle_image") {
       cb(null, folders.vehicle_image);
-    }
-    else if (file.fieldname === "plate_image") {
+    } else if (file.fieldname === "plate_image") {
       cb(null, folders.plate_image);
-    }
-    else if (file.fieldname === "video") {
+    } else if (file.fieldname === "video") {
       cb(null, folders.video);
-    }
-    else {
+    } else {
       cb(null, baseDir);
     }
 
@@ -38,7 +34,7 @@ const storage = multer.diskStorage({
 
   filename: function (req, file, cb) {
 
-    const id = req.params.id;  // plateNo_timestamp
+    const id = req.params.id;
     const ext = path.extname(file.originalname);
 
     cb(null, `${id}${ext}`);

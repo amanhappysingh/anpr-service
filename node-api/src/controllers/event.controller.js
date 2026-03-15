@@ -11,7 +11,7 @@ exports.createEvent = async (req, res) => {
 
     await pool.query(
       `INSERT INTO vehicle_logs
-       (event_id, camera_id, direction, image_url, plate_image_url, video_url, ocr_status)
+       (event_id, camera_id, direction, image_url, plate_image_url, video_url)
        VALUES ($1,$2,$3,$4,$5,$6,'PENDING')`,
       [event_id, camera_id, direction, vehiclePath, platePath, videoPath]
     );

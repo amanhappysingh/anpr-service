@@ -22,6 +22,7 @@ router.post(
 router.get("/vehicle-report", controller.getVehicleReport);
 
 router.get("/vehicle-logs", controller.getVehicleLogs);
+router.get("/images", controller.getLatestVehicleImages);
 
 router.get("/vehicle-report/download", controller.downloadVehicleReport);
 

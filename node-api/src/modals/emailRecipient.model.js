@@ -11,7 +11,7 @@ class EmailRecipient {
 
   static async findAll() {
     return pool.query(
-      "SELECT * FROM email_recipients ORDER BY created_at DESC"
+      "SELECT * FROM email_recipients"
     );
   }
 

@@ -1,14 +1,15 @@
 const express = require("express");
-const reportController = require("../controllers/report.controller");
+const vechileController = require("../controllers/vehicle.controller");
+
 const authMiddleware = require("../middleware/auth.middleware");
 
 const router = express.Router();
 
-router.get("/report/daily",authMiddleware , reportController.getReportByDate);
+router.get("/report/daily",authMiddleware , vechileController.getVehicleReport);
 router.get(
   "/report/download",
   authMiddleware,
-  reportController.downloadReport
+  vechileController.downloadVehicleReport
 );
 
 module.exports = router;

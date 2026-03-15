@@ -1,8 +1,7 @@
-// controllers/dashboard.controller.js
-
 const dashboardService = require("../services/dashboard.service");
 
 exports.getDashboardData = async (req, res) => {
+
   try {
 
     const data = await dashboardService.getDashboardData();
@@ -12,14 +11,15 @@ exports.getDashboardData = async (req, res) => {
       data
     });
 
-  } catch (error) {
+  } catch (err) {
 
-    console.error(error);
+    console.error(err);
 
     res.status(500).json({
-      success: false,
-      message: "Failed to load dashboard"
+      success:false,
+      message:"Dashboard load failed"
     });
 
   }
+
 };

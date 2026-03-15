@@ -1,103 +1,68 @@
-// services/dashboard.service.js
-
 const pool = require("../db");
 
 exports.getDashboardData = async () => {
 
-  // TOTAL VEHICLES TODAY
-  const vehiclesToday = await pool.query(`
-    SELECT COUNT(DISTINCT plate_number)
+  const counters = await pool.query(`
+    SELECT
+      COUNT(*) as tot,
+
+      COUNT(*) FILTER (WHERE direction='IN') as "inC",
+      COUNT(*) FILTER (WHERE direction='OUT') as "outC",
+
+      COUNT(*) FILTER (WHERE direction='IN' AND vehicle_type='Car') as "inCar",
+      COUNT(*) FILTER (WHERE direction='IN' AND vehicle_type='Truck') as "inTrk",
+
+      COUNT(*) FILTER (WHERE direction='OUT' AND vehicle_type='Car') as "outCar",
+      COUNT(*) FILTER (WHERE direction='OUT' AND vehicle_type='Truck') as "outTrk",
+
+      COUNT(*) FILTER (WHERE is_authorized=true) as auth,
+      COUNT(*) FILTER (WHERE is_authorized=false) as unauth
+
     FROM vehicle_logs
-    WHERE DATE(created_at) = CURRENT_DATE
   `);
 
-  // TOTAL PLATES
-  const totalPlates = await pool.query(`
-    SELECT COUNT(*) FROM vehicle_logs
-    WHERE DATE(created_at) = CURRENT_DATE
-  `);
-
-  // AUTHORISED
-  const authorised = await pool.query(`
-    SELECT COUNT(*)
-    FROM vehicle_logs
-    WHERE status = 'Authorised'
-    AND DATE(created_at) = CURRENT_DATE
-  `);
-
-  // UNAUTHORISED
-  const unauthorised = await pool.query(`
-    SELECT COUNT(*)
-    FROM vehicle_logs
-    WHERE status = 'Unauthorised'
-    AND DATE(created_at) = CURRENT_DATE
-  `);
-
-  // REGISTERED VEHICLES
   const registered = await pool.query(`
-    SELECT COUNT(*)
-    FROM registered_vehicles
-    WHERE is_active = TRUE
+    SELECT COUNT(*) FROM registered_vehicles
   `);
 
-  // LAST 7 DAYS TREND
-  const last7Days = await pool.query(`
-    SELECT 
-      TO_CHAR(created_at, 'Dy') as day,
-      COUNT(*) FILTER (WHERE vehicle_type='Car') as car,
-      COUNT(*) FILTER (WHERE vehicle_type='Bus') as bus,
-      COUNT(*) FILTER (WHERE vehicle_type='Truck') as truck
-    FROM vehicle_logs
-    WHERE created_at >= NOW() - INTERVAL '7 days'
-    GROUP BY day
-  `);
-
-  // VEHICLE DISTRIBUTION
-  const distribution = await pool.query(`
-    SELECT 
-      vehicle_type as type,
-      COUNT(*) as count
-    FROM vehicle_logs
-    GROUP BY vehicle_type
-  `);
-
-  // RECENT DETECTIONS
   const recent = await pool.query(`
     SELECT
-      id,
-      plate_number,
-      vehicle_type,
-      camera_id,
-      status,
-      confidence,
-      direction,
-      created_at
+      event_id as id,
+      plate_number as plate,
+      vehicle_type as vtype,
+      direction as dir,
+
+      CASE
+        WHEN is_authorized=true THEN 'Authorised'
+        ELSE 'Unauthorised'
+      END as status,
+
+      TO_CHAR(created_at,'HH12:MI:SS AM') as time
+
     FROM vehicle_logs
     ORDER BY created_at DESC
-    LIMIT 10
+    LIMIT 200
+  `);
+
+  const weekly = await pool.query(`
+    SELECT
+      TO_CHAR(created_at,'Dy') as d,
+
+      COUNT(*) FILTER (WHERE vehicle_type='Car') as c,
+      COUNT(*) FILTER (WHERE vehicle_type='Truck') as t
+
+    FROM vehicle_logs
+    WHERE created_at >= NOW() - INTERVAL '7 days'
+    GROUP BY d
   `);
 
   return {
-    todayData: {
-      totalVehicles: Number(vehiclesToday.rows[0].count),
-      totalPlates: Number(totalPlates.rows[0].count),
-      totalDetected: Number(vehiclesToday.rows[0].count),
-      authorised: Number(authorised.rows[0].count),
-      unauthorised: Number(unauthorised.rows[0].count),
-      registered: Number(registered.rows[0].count),
-      accuracy: 98.5
+    counters: {
+      ...counters.rows[0],
+      reg: Number(registered.rows[0].count),
+      acc: 98.5
     },
-
-    last7DaysData: last7Days.rows,
-
-    vehicleClassification: distribution.rows,
-
-    recentDetections: recent.rows,
-
-    systemStatus: {
-      cameras: { active: 3, total: 3 },
-      uptime: "99.8%",
-      lastUpdate: "Just now"
-    }
+    detections: recent.rows,
+    weekly: weekly.rows
   };
 };

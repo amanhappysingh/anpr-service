@@ -1,0 +1,15 @@
+{
+    "ffmpeg_path": "C:\\ffmpeg\\ffmpeg-8.0.1-essentials_build\\bin\\ffmpeg.exe",
+    "remote_server": "rtsp://62.72.42.155:8554",
+    "opts": "-vf scale=1920:1080,format=yuv420p -c:v libx264 -preset ultrafast -tune zerolatency -g 60 -r 30 -b:v 2500k -f rtsp -rtsp_transport tcp",
+    "cameras": [
+        {
+            "name": "cam1",
+            "url": "rtsp://username:password@192.168.1.101:554/stream1"
+        },
+        {
+            "name": "cam2",
+            "url": "rtsp://192.168.1.94:8554/stream"
+        }
+    ]
+}
